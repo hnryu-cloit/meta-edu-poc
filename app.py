@@ -2,8 +2,6 @@ import streamlit as st
 import time
 import warnings
 
-warnings.filterwarnings("ignore", "missing ScriptRunContext")
-
 st.set_page_config(
     page_title="AI Math Assistant - MATHBOT",
     page_icon="🤖",
