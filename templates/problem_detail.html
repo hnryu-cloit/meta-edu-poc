@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Problem #{{ problem.id }} - Meta-Edu PoC</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin: 0; background-color: #f8f9fa; color: #343a40; }
+        .container { display: flex; max-width: 1400px; margin: 2em auto; gap: 2em; }
+        .main-content { flex: 3; background-color: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .sidebar { flex: 1; background-color: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        h1, h2, h3 { color: #212529; border-bottom: 1px solid #dee2e6; padding-bottom: 0.5em; margin-bottom: 1em; }
+        h1 { font-size: 2em; }
+        h2 { font-size: 1.5em; }
+        h3 { font-size: 1.25em; }
+        img { max-width: 100%; border: 1px solid #ddd; border-radius: 8px; }
+        .solution-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1em; }
+        .solution-item { cursor: pointer; border: 3px solid transparent; border-radius: 8px; transition: border-color 0.2s; }
+        .solution-item:hover { border-color: #007bff; }
+        .solution-item img.selected { border-color: #0056b3; box-shadow: 0 0 8px rgba(0, 86, 179, 0.5); }
+        #analysis-result { margin-top: 1.5em; padding: 1.5em; background-color: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; line-height: 1.6; }
+        #loader { display: none; text-align: center; padding: 2em; font-size: 1.2em; color: #6c757d; }
+        .metadata { font-size: 0.9em; color: #495057; }
+        .metadata pre { white-space: pre-wrap; word-wrap: break-word; background-color: #e9ecef; padding: 1em; border-radius: 5px; }
+        
+        /* Analysis styles */
+        .analysis-section { margin-bottom: 1.5em; }
+        .score { font-size: 1.5em; font-weight: bold; color: #28a745; }
+        .status-correct { color: #28a745; font-weight: bold; }
+        .status-incorrect { color: #dc3545; font-weight: bold; }
+        .status-partial { color: #ffc107; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+        th, td { text-align: left; padding: 0.75em; border-bottom: 1px solid #dee2e6; }
+        th { background-color: #f1f3f5; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="main-content">
+            <h1>Problem #{{ problem.id }}</h1>
+            <img src="{{ url_for('static', filename=problem.question_image) }}" alt="Question Image">
+
+            <h2 style="margin-top: 2em;">Student Solutions</h2>
+            <div class="solution-gallery">
+                {% for solution in problem.solutions %}
+                <div class="solution-item">
+                    <img id="solution-img-{{ loop.index }}" 
+                         src="{{ url_for('static', filename=solution.solution_image) }}" 
+                         alt="Solution {{ solution.id }}"
+                         onclick="analyzeSolution('{{ problem.id }}', '{{ solution.solution_image }}', '{{ problem.question_image }}', '{{ loop.index }}')">
+                </div>
+                {% endfor %}
+            </div>
+            
+            <h2 style="margin-top: 2em;">Analysis</h2>
+            <div id="loader"><p>🔍 Analyzing... this may take a moment.</p></div>
+            <div id="analysis-result">
+                Select a student solution to begin analysis.
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <h3>Problem Metadata</h3>
+            {% if problem_data %}
+            <div class="metadata">
+                <h4>Curriculum</h4>
+                <pre>{{ problem_data.curriculum | tojson(indent=2) }}</pre>
+                <h4>Achievement Standards</h4>
+                <pre>{{ problem_data.achievement_standards | tojson(indent=2) }}</pre>
+                <h4>Considerations</h4>
+                <pre>{{ problem_data.consideration | tojson(indent=2) }}</pre>
+            </div>
+            {% else %}
+            <p>No metadata available for this problem.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        // Simple in-memory cache to store analysis results
+        let analysisCache = {};
+
+        async function analyzeSolution(problemId, solutionImage, questionImage, solutionIndex) {
+            // Highlight selected image
+            document.querySelectorAll('.solution-gallery img').forEach(img => img.classList.remove('selected'));
+            document.getElementById('solution-img-' + solutionIndex).classList.add('selected');
+
+            const cacheKey = solutionImage;
+            const analysisResultDiv = document.getElementById('analysis-result');
+            const loader = document.getElementById('loader');
+
+            analysisResultDiv.innerHTML = ''; // Clear previous results
+            analysisResultDiv.style.display = 'none';
+            loader.style.display = 'block';
+
+            // Check cache first
+            if (analysisCache[cacheKey]) {
+                renderAnalysis(analysisCache[cacheKey]);
+                loader.style.display = 'none';
+                analysisResultDiv.style.display = 'block';
+                return;
+            }
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        problem_id: problemId,
+                        solution_image: solutionImage,
+                        question_image: questionImage,
+                    }),
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || result.error) {
+                    throw new Error(result.error || `HTTP error! Status: ${response.status}`);
+                }
+
+                analysisCache[cacheKey] = result; // Cache the successful result
+                renderAnalysis(result);
+
+            } catch (error) {
+                console.error('Error during analysis:', error);
+                analysisResultDiv.innerHTML = `<p style="color: #dc3545;">An error occurred during analysis: ${error.message}</p>`;
+            } finally {
+                loader.style.display = 'none';
+                analysisResultDiv.style.display = 'block';
+            }
+        }
+        
+        function renderAnalysis(data) {
+            const analysisResultDiv = document.getElementById('analysis-result');
+            
+            let analysisHtml = `
+                <div class="analysis-section">
+                    <h3>Final Score</h3>
+                    <p class="score">${data.final_score} / ${data.total_score}</p>
+                </div>
+                
+                <div class="analysis-section">
+                    <h3>Overall Feedback</h3>
+                    <p>${data.overall_feedback}</p>
+                </div>
+
+                <div class="analysis-section">
+                    <h3>Step-by-step Analysis</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Step Description</th>
+                                <th>Status</th>
+                                <th>Feedback</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            if (data.step_by_step_analysis && data.step_by_step_analysis.length > 0) {
+                data.step_by_step_analysis.forEach(step => {
+                    const statusClass = `status-${step.status.toLowerCase()}`;
+                    analysisHtml += `
+                        <tr>
+                            <td>${step.step}</td>
+                            <td class="${statusClass}">${step.status}</td>
+                            <td>${step.reasoning}</td>
+                        </tr>
+                    `;
+                });
+            } else {
+                analysisHtml += '<tr><td colspan="3">No step-by-step analysis available.</td></tr>';
+            }
+
+            analysisHtml += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            analysisResultDiv.innerHTML = analysisHtml;
+        }
+
+    </script>
+
+</body>
+</html>

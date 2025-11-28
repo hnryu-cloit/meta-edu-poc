@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meta-Edu PoC</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; }
+        h1 { color: #333; }
+        .problem-list { list-style: none; padding: 0; }
+        .problem-item { margin-bottom: 1em; border: 1px solid #ccc; padding: 1em; border-radius: 5px; }
+        .problem-item a { text-decoration: none; color: #007BFF; font-size: 1.2em; }
+    </style>
+</head>
+<body>
+    <h1>Available Problems</h1>
+    <ul class="problem-list">
+        {% for problem in problems %}
+            <li class="problem-item">
+                <a href="{{ url_for('problem_detail', problem_id=problem.id) }}">
+                    Problem #{{ problem.id }}
+                </a>
+                <p>{{ problem.solutions|length }} solution(s) available.</p>
+            </li>
+        {% endfor %}
+    </ul>
+</body>
+</html>
