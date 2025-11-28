@@ -109,7 +109,7 @@ LOCATION=your_gcp_location
 ### 4. 배치 처리 실행
 
 ```bash
-python process_all.py
+python main.py
 ```
 
 실행 결과는 `results/batch_{timestamp}/` 디렉토리에 저장됩니다:
