@@ -4,21 +4,34 @@
 "일관된" 채점 기준으로, "최소한"의 사용자 개입으로, 학생들이 푼 수학 문제를 채점 수행하는 것을 목표로 합니다.
 
 ### 핵심 포인트
-- 문제별 객관적 채점기준(메타데이터) 생성
-- 학생 필기 풀이와 모범 답안(채점기준) 간 정합성 평가
-- Gemini 기반 자동 채점 및 근거 제공
+- **AI 기반 교육과정 자동 매핑**: 수학 문제 이미지만으로 학년/단원/성취기준 자동 식별
+- **3단계 메타데이터 추출**: 교육과정 선택 → 성취기준 선택 → 채점 가이드 생성
+- **문제별 객관적 채점기준 생성**: 일관된 채점 가이드 자동 생성
+- **학생 필기 풀이 자동 분석**: 단계별 평가 및 구체적 피드백 제공
+- **Gemini 기반 자동 채점**: 대규모 언어 모델의 추론 능력 활용
 
 ## 2. PoC 시나리오
 
 ### 입력 데이터(고객사 제공)
-1. 수학문제 이미지 (`resource/question/{문제번호}.png`)
-2. 모범답안 이미지 (`resource/commentary/{문제번호}.png`)
-3. 학생 문제풀이 필기 이미지 (`resource/solve/{문제번호}-{회차}.png`)
+1. 수학 문제 이미지 (`resource/question/{문제번호}.png`)
+2. 모범 답안 이미지 (`resource/commentary/{문제번호}.png`)
+3. 학생 문제 풀이 필기 이미지 (`resource/solve/{문제번호}-{회차}.png`)
 4. 학생 답안 정보 (`resource/list.csv`)
 
 ### 주요 단계
 
-#### 1단계: 개별 수학 문제의 메타데이터 추출
+#### 1단계: 개별 수학 문제의 메타데이터 추출 (3단계 프로세스)
+
+**1-1단계: 교육과정 자동 매핑**
+- AI가 문제 이미지를 분석하여 `curriculum.csv`에서 적절한 교육과정 선택
+- 학년, 교과목, 대단원, 중단원, 소단원 자동 식별
+
+**1-2단계: 성취기준 자동 선택**
+- 선택된 학년을 기반으로 `achievement_standards.csv` 필터링
+- 해당 학년의 성취기준만 제시하여 정확도 향상
+- 교육과정과 일치하는 성취기준 코드 자동 선택
+
+**1-3단계: 채점 가이드 생성**
 - 교육과정(별책 수학과 교육과정 2022년) 기준 분석
 - 출제자 의도 및 채점 기준 정의
 - 단계별 점수 체계 생성
@@ -40,10 +53,9 @@
 2. 일관된 채점가이드(메타데이터)와 학생풀이의 부합하는 판정
 
 #### 예외 처리
-현재까지 전달 받는 데이터의 경우, "별도의 채점 기준이 없는" 상태에서 문제 풀이 된 풀이 자료로,
+- 현재까지 전달 받는 데이터의 경우, "별도의 채점 기준이 없는" 상태에서 문제 풀이 된 풀이 자료로,
 동일 수학 문제에 대해 N회독에 해당하는 풀이가 존재할 수 있습니다.
-
-따라서, 학생의 풀이가 "모범 답안(기준)"과 다른 풀이 인 경우에는 Gemini의 추론 능력으로 별도의 채점 가이드를 생성하여
+- 따라서, 학생의 풀이가 "모범 답안(기준)"과 다른 풀이 인 경우에는 Gemini의 추론 능력으로 별도의 채점 가이드를 생성하여
 점수 및 근거를 description으로 제안합니다.
 
 #### 최종 결과물
@@ -69,8 +81,9 @@ meta-edu-poc/
 │   ├── list.csv           # 처리할 풀이 목록
 │   ├── achievement_standards.csv  # 성취기준
 │   ├── consideration.csv  # 고려사항
-│   └── curriculum.csv     # 교육과정
-├── process_all.py         # 배치 처리 스크립트
+│   └── curriculum.csv     # 교육과정     
+├── extract_metadata.py    # 메타데이터 추출 전용 스크립트
+├── main.py                # 메인 실행 스크립트
 ├── requirements.txt
 └── README.md
 ```
@@ -80,7 +93,7 @@ meta-edu-poc/
 ### 1. 환경 설정
 
 ```bash
-# 가상환경 생성 (선택사항)
+# 가상환경 생성
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
@@ -90,7 +103,7 @@ pip install -r requirements.txt
 
 ### 2. 환경 변수 설정
 
-`.env` 파일을 프로젝트 루트에 생성하고 다음 정보를 입력하세요:
+`.env` 파일을 프로젝트 루트에 생성하고 다음 정보를 입력하세요.
 
 ```env
 API_KEY=your_google_api_key
@@ -106,22 +119,64 @@ LOCATION=your_gcp_location
 - `resource/solve/`: 학생 풀이 이미지 파일들
 - `resource/list.csv`: 처리할 풀이 목록
 
-### 4. 배치 처리 실행
+### 4. 실행 방법
 
+**중요**: 자동 채점 시스템은 2단계 프로세스로 동작합니다.
+
+#### 4-1. 1단계: 메타데이터 추출 (필수 선행 작업)
 ```bash
+# list.csv에 명시된 모든 문제의 채점 가이드 생성
+python extract_metadata.py --from-list
+
+# 또는 특정 문제만 메타데이터 추출
+python extract_metadata.py --problem-id 223174
+
+# 또는 question 디렉토리의 모든 문제 처리
+python extract_metadata.py --from-directory
+```
+
+**출력 결과**: `metadata/` 디렉토리에 각 문제별 채점 가이드 생성
+
+#### 4-2. 2단계: 학생 풀이 자동 채점 (메타데이터 필수)
+```bash
+# list.csv의 모든 학생 풀이 자동 채점
 python main.py
 ```
 
-실행 결과는 `results/batch_{timestamp}/` 디렉토리에 저장됩니다:
-- `metadata/`: 문제별 메타데이터 (채점 가이드)
+**전제 조건**: `metadata/` 디렉토리에 문제별 메타데이터 파일이 존재해야 합니다.
+**출력 결과**: `results/batch_{timestamp}/` 디렉토리에 채점 결과 저장
+
+### 5. 출력 결과
+
+실행 결과는 다음 디렉토리에 저장됩니다.
+
+**1단계: 메타데이터 추출** (`metadata/`)
+- `{문제번호}_metadata.json`: 각 문제의 채점 가이드
+- `_extraction_summary.json`: 추출 결과 요약
+
+**2단계: 학생 풀이 채점** (`results/batch_{timestamp}/`)
 - `analysis/`: 학생별 풀이 분석 결과
-- `summary.json`: 전체 처리 결과 요약
+  - `{문제번호}_{풀이파일명}_analysis.json`
+- `summary.json`: 전체 채점 결과 요약 (성공/실패 통계)
 
 ## 주요 기능
 
-### 1. 메타데이터 추출 (common/prompt.py:create_metadata_extraction_prompt)
+### 1. 메타데이터 추출 (3단계 자동화 프로세스)
+
+**1-1단계: 교육과정 자동 매핑** (`common/prompt.py:create_curriculum_selection_prompt`)
+- 문제 이미지 분석을 통한 학년/교과목/단원 자동 식별
+- `curriculum.csv`의  항목 중 최적 매칭
+- AI 기반 교육과정 자동 분류
+
+**1-2단계: 성취기준 자동 선택** (`common/prompt.py:create_achievement_selection_prompt`)
+- 선택된 학년 기반 성취기준 필터링 (초등: 2수*, 중등: 9수*, 고등: 10공수*/12확통* 등)
+- 해당 학년의 성취기준만 제시하여 학년 간 혼동 방지
+- 대단원/중단원과 일치하는 성취기준 코드 자동 선택
+- **예시**: 고3 "경우의 수" 문제 → "12확통01-02" (중복조합) 자동 선택
+
+**1-3단계: 채점 가이드 생성** (`common/prompt.py:create_metadata_extraction_prompt`)
 - 문제와 모범답안 이미지 분석
-- 교육과정 매핑
+- 선택된 교육과정 정보를 기반으로 채점 기준 생성
 - 풀이 단계별 채점 기준 생성
 - 동치 답안 및 대안 풀이법 정의
 
@@ -131,9 +186,11 @@ python main.py
 - 부분 점수 부여
 - 구체적 피드백 생성
 
-### 3. 배치 처리 (process_all.py)
+### 3. 배치 처리 (main.py)
+- **전제 조건**: 사전 추출된 메타데이터 필수 (`metadata/` 디렉토리)
+- 초기화 시 모든 메타데이터를 메모리에 로드
 - list.csv의 모든 풀이 자동 처리
-- 문제별 메타데이터 캐싱
+- 메타데이터 캐시를 활용한 빠른 조회
 - 처리 통계 및 오류 로깅
 - 결과 파일 자동 저장
 
@@ -142,11 +199,32 @@ python main.py
 ### 메타데이터 (metadata/{문제번호}_metadata.json)
 ```json
 {
-  "curriculum_mapping": { ... },
-  "problem_analysis": { ... },
-  "solution_steps": [ ... ],
-  "total_points": 100,
-  "correct_answer": "...",
+  "curriculum_mapping": {
+    "학년": "고3",
+    "교과목": "확률과 통계",
+    "대단원": "경우의 수",
+    "중단원": "순열과 조합",
+    "소단원": "중복조합",
+    "성취기준_코드": "12확통01-02"
+  },
+  "problem_analysis": {
+    "problem_type": "응용",
+    "difficulty": "응용",
+    "required_concepts": ["경우의 수", "합의 법칙", "중복조합"],
+    "problem_intent": "..."
+  },
+  "solution_steps": [
+    {
+      "step_number": 1,
+      "step_name": "...",
+      "description": "...",
+      "key_concept": "...",
+      "points": 3,
+      "common_errors": ["..."]
+    }
+  ],
+  "total_points": 10,
+  "correct_answer": "20",
   "alternative_solutions": [ ... ],
   "grading_considerations": [ ... ]
 }
@@ -180,10 +258,27 @@ python main.py
    - 문제: `{문제번호}.png`
    - 모범답안: `{문제번호}.png`
    - 학생풀이: `{문제번호}-{회차}.png`
-3. **API 비용**: Gemini API 사용에 따른 비용이 발생할 수 있습니다.
-4. **처리 시간**: 문제당 평균 10-30초 소요됩니다.
+3. **처리 시간**: (현재, gemini-2.5-flash 기준)
+   - 메타데이터 추출: 문제당 평균 40-60초 (3단계 프로세스)
+   - 학생 풀이 분석: 풀이당 평균 10-20초
+4. **교육과정 데이터**: `curriculum.csv`, `achievement_standards.csv`, `consideration.csv`는 2022 개정 교육과정 기준입니다.
 
 ## 문제 해결
+
+### 메타데이터 디렉토리를 찾을 수 없음
+**오류 메시지**: `메타데이터 디렉토리를 찾을 수 없습니다: metadata/`
+- 먼저 `python extract_metadata.py --from-list`를 실행하여 메타데이터 생성
+- `metadata/` 디렉토리가 프로젝트 루트에 있는지 확인
+
+### 메타데이터 파일이 없음
+**오류 메시지**: `메타데이터 디렉토리에 메타데이터 파일이 없습니다`
+- `metadata/` 디렉토리에 `{문제번호}_metadata.json` 파일이 있는지 확인
+- `python extract_metadata.py --from-list`로 메타데이터 재생성
+
+### 특정 문제의 메타데이터를 찾을 수 없음
+**오류 메시지**: `메타데이터를 찾을 수 없습니다: {문제번호}`
+- 해당 문제만 메타데이터 추출: `python extract_metadata.py --problem-id {문제번호}`
+- list.csv에 명시된 문제 ID가 정확한지 확인
 
 ### 이미지 파일을 찾을 수 없음
 - 파일 경로와 이름이 올바른지 확인
