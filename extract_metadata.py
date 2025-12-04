@@ -17,7 +17,6 @@ from common.gemini import Gemini
 from common.prompt import create_metadata_extraction_prompt
 import pandas as pd
 
-from services.problem_service import get_problem_data
 
 class MetadataExtractor:
     """메타데이터 추출 클래스"""
