@@ -35,7 +35,7 @@ st.markdown("""
     .stTabs [data-baseweb="tab"] {
         height: 60px;
         padding: 0 28px;
-        font-size: 1.6rem;
+        font-size: 2rem;
         font-weight: 700;
     }
 
@@ -144,7 +144,7 @@ with st.sidebar:
     st.markdown("---")
 
     # 배치 선택
-    st.markdown("### 📂 배치 선택")
+    st.markdown("### 📂 폴더 선택")
     batches = get_available_batches()
     if batches:
         selected_batch = st.selectbox(
@@ -174,7 +174,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("""
-    <div style='text-align: center; font-size: 0.75rem; color: #888;'>
+    <div style='text-align: center; font-size: 1rem; color: #888; padding: 0.5rem 0;'>
         Copyright © 2025<br>
         ITCEN CLOIT<br>
         All rights reserved.
@@ -191,9 +191,9 @@ st.markdown('<div class="main-header">🎓 수학 문제 자동 채점 시스템
 
 # 탭 생성
 tab1, tab2, tab3 = st.tabs([
-    "홈",
-    "문제별 분석",
-    "문제 메타데이터"
+    "🏠 홈",
+    "📝 문제별 학생풀이 분석",
+    "💾 문제 메타데이터"
 ])
 
 
@@ -206,7 +206,6 @@ with tab1:
         st.warning("선택된 배치가 없습니다.")
     else:
         st.markdown(f"### 📊 전체 통계 요약")
-        st.markdown(f"**배치:** `{os.path.basename(selected_batch)}`")
 
         # 데이터 로드
         analyses = load_all_analyses(selected_batch)
@@ -258,21 +257,18 @@ with tab1:
                 st.metric(
                     label="📈 평균 점수",
                     value=f"{avg_score:.1f}/{avg_total:.0f}",
-                    delta=f"{avg_percentage:.1f}%"
                 )
 
             with col3:
                 st.metric(
                     label="✅ PASS",
                     value=f"{pass_count}개",
-                    delta=f"{pass_count/total_count*100:.1f}%" if total_count > 0 else "0%"
                 )
 
             with col4:
                 st.metric(
                     label="⚠️ FAIL",
                     value=f"{fail_count}개",
-                    delta=f"{fail_count/total_count*100:.1f}%" if total_count > 0 else "0%"
                 )
 
             st.markdown("---")
@@ -324,7 +320,7 @@ with tab1:
             st.markdown("---")
 
             # 문제별 성적 테이블
-            st.markdown("### 📋 문제별 성적")
+            st.markdown("### 📢 문제별 성적")
 
             problem_stats = defaultdict(lambda: {'count': 0, 'scores': [], 'total_possibles': []})
             for analysis in filtered_analyses:
@@ -371,7 +367,7 @@ with tab2:
             problem_ids = sorted(list(set(a.get('problem_id') for a in analyses)))
 
             selected_problem = st.selectbox(
-                "🔍 문제 선택",
+                "📍 문제 선택",
                 problem_ids,
                 format_func=lambda x: f"문제 {x}"
             )
@@ -473,7 +469,7 @@ with tab2:
 # ============================================================================
 
 with tab3:
-    st.markdown("### 📄 메타데이터 뷰어")
+    st.markdown("### 🚀 메타데이터")
 
     metadata_files = get_available_metadata()
 
@@ -481,7 +477,7 @@ with tab3:
         st.error("메타데이터 파일이 없습니다.")
     else:
         selected_metadata = st.selectbox(
-            "🔍 파일 선택",
+            "📍 문제 선택",
             metadata_files,
             format_func=lambda x: x.replace('_metadata.json', '')
         )
@@ -523,15 +519,15 @@ with tab3:
                 col1, col2 = st.columns(2)
                 with col1:
                     st.info(f"**문제 유형:** {problem_analysis.get('problem_type', 'N/A')}")
+                with col2:
                     st.info(f"**난이도:** {problem_analysis.get('difficulty', 'N/A')}")
 
-                with col2:
-                    required_concepts = problem_analysis.get('required_concepts', [])
+                required_concepts = problem_analysis.get('required_concepts', [])
+                if required_concepts:
                     st.info(f"**필요 개념:** {', '.join(required_concepts)}")
 
                 if 'problem_intent' in problem_analysis:
-                    st.markdown("**출제 의도:**")
-                    st.write(problem_analysis['problem_intent'])
+                    st.info(f"**출제 의도:** {problem_analysis['problem_intent']}")
 
                 st.markdown("---")
 

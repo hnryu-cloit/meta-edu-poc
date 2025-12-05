@@ -84,6 +84,7 @@ meta-edu-poc/
 │   └── curriculum.csv     # 교육과정     
 ├── extract_metadata.py    # 메타데이터 추출 전용 스크립트
 ├── main.py                # 메인 실행 스크립트
+├── dashboard.py           # 채점 결과 시각화 대시보드
 ├── requirements.txt
 └── README.md
 ```
@@ -145,6 +146,22 @@ python main.py
 
 **전제 조건**: `metadata/` 디렉토리에 문제별 메타데이터 파일이 존재해야 합니다.
 **출력 결과**: `results/batch_{timestamp}/` 디렉토리에 채점 결과 저장
+
+#### 4-3. 결과 시각화: 대시보드 실행
+```bash
+# 대시보드 실행
+python dashboard.py
+
+# 또는 streamlit 명령어로 직접 실행
+streamlit run dashboard.py
+```
+
+**기능**:
+- **홈 탭**: 전체 통계 요약, 점수 분포 차트, 문제별 성적 테이블
+- **문제별 학생풀이 분석 탭**: 각 학생 풀이의 상세 분석, 단계별 평가, 피드백
+- **문제 메타데이터 탭**: 교육과정 정보, 문제 분석, 풀이 단계 확인
+
+**전제 조건**: `results/batch_{timestamp}/` 디렉토리에 채점 결과가 존재해야 합니다.
 
 ### 5. 출력 결과
 
@@ -225,8 +242,8 @@ python main.py
   ],
   "total_points": 10,
   "correct_answer": "20",
-  "alternative_solutions": [ ... ],
-  "grading_considerations": [ ... ]
+  "alternative_solutions": [ "..." ],
+  "grading_considerations": [ "..." ]
 }
 ```
 
@@ -240,12 +257,12 @@ python main.py
   "analysis": {
     "student_approach": "...",
     "is_alternative_method": false,
-    "step_by_step_evaluation": [ ... ],
+    "step_by_step_evaluation": [ "..." ],
     "final_score": 85,
     "total_possible": 100,
-    "overall_evaluation": { ... },
+    "overall_evaluation": { },
     "detailed_feedback": "...",
-    "improvement_suggestions": [ ... ]
+    "improvement_suggestions": [ "..." ]
   },
   "timestamp": "2025-11-28T..."
 }
