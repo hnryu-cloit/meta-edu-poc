@@ -4,7 +4,7 @@ from colorlog import ColoredFormatter
 import time
 import functools
 
-APP_LOGGER_NAME = 'hnryu'
+APP_LOGGER_NAME = 'ITCEN CLOIT'
 
 
 def init_logger(
