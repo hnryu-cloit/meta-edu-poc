@@ -434,6 +434,32 @@ with tab2:
                                     st.image(solution_image_path, width='stretch')
                                 st.markdown("---")
 
+                            # 수학적 방법 검증 표시
+                            if 'mathematical_methods_used' in analysis['analysis']:
+                                st.markdown("#### 🔍 사용된 수학적 방법 검증")
+                                methods = analysis['analysis']['mathematical_methods_used']
+                                for method in methods:
+                                    method_name = method.get('method_name', 'N/A')
+                                    is_valid = method.get('is_valid', False)
+                                    validation_comment = method.get('validation_comment', '')
+
+                                    if is_valid:
+                                        st.success(f"✓ **{method_name}**: {validation_comment}")
+                                    else:
+                                        st.error(f"✗ **{method_name}**: {validation_comment}")
+                                st.markdown("---")
+
+                            # 학생 풀이 LaTeX 표시
+                            if 'student_solution_latex' in analysis['analysis']:
+                                st.markdown("#### 📐 학생 풀이 (수식)")
+                                student_latex = analysis['analysis']['student_solution_latex']
+                                try:
+                                    st.latex(student_latex)
+                                except Exception as e:
+                                    st.warning(f"LaTeX 렌더링 실패: {e}")
+                                    st.code(student_latex, language='latex')
+                                st.markdown("---")
+
                             col1, col2 = st.columns([2, 1])
 
                             with col1:
@@ -455,6 +481,14 @@ with tab2:
                                     st.markdown(f"**{step_status} {step.get('step_number')}단계:** {step.get('step_name')}")
                                     st.markdown(f"- 점수: {step.get('points_earned')}/{step.get('points_possible')}점")
                                     st.markdown(f"- 평가: {step.get('evaluation')}")
+
+                                    # 학생 작업 LaTeX 표시
+                                    if 'student_work_latex' in step:
+                                        st.markdown("**학생 풀이 (수식):**")
+                                        try:
+                                            st.latex(step['student_work_latex'])
+                                        except Exception:
+                                            st.code(step['student_work_latex'], language='latex')
 
                                     if step.get('status') != 'Correct':
                                         st.warning(f"💡 피드백: {step.get('feedback')}")

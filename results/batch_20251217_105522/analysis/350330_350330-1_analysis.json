@@ -1,0 +1,80 @@
+{
+  "problem_id": "350330",
+  "solution_file": "350330-1.png",
+  "student_answer": "$\\\\frac{\\\\sqrt{3}-\\\\sqrt{2}}{2}$",
+  "expected_result": "FAIL",
+  "analysis": {
+    "student_approach": "학생은 주어진 식의 각 삼각비 값을 파악한 후 뺄셈 연산을 수행하는 일반적인 방법을 사용했습니다.",
+    "mathematical_methods_used": [
+      {
+        "method_name": "특수각의 삼각비",
+        "is_valid": true,
+        "validation_comment": "sin 60° 값은 올바르게 적용되었으나, cos 30° 값은 잘못 적용되었습니다."
+      },
+      {
+        "method_name": "사칙연산 (뺄셈)",
+        "is_valid": true,
+        "validation_comment": "학생이 파악한 값들을 이용한 뺄셈 연산은 올바르게 수행되었습니다."
+      }
+    ],
+    "is_alternative_method": false,
+    "step_by_step_evaluation": [
+      {
+        "step_number": 1,
+        "step_name": "sin 60°의 값 파악",
+        "student_work": "sin 60° = √3/2",
+        "status": "Correct",
+        "points_earned": 4,
+        "points_possible": 4,
+        "evaluation": "sin 60°의 값을 정확하게 파악했습니다.",
+        "error_type": "없음",
+        "feedback": "sin 60°의 값을 정확하게 알고 있습니다."
+      },
+      {
+        "step_number": 2,
+        "step_name": "cos 30°의 값 파악",
+        "student_work": "cos 30° = √2/2",
+        "status": "Incorrect",
+        "points_earned": 0,
+        "points_possible": 4,
+        "evaluation": "cos 30°의 값을 √2/2로 잘못 파악했습니다. 올바른 값은 √3/2입니다. 이는 특수각의 삼각비 개념 오류에 해당합니다.",
+        "error_type": "개념 오류",
+        "feedback": "cos 30°의 값을 √2/2로 잘못 알고 있습니다. cos 30°는 √3/2입니다. 특수각의 삼각비 값을 다시 한번 확인해 보세요."
+      },
+      {
+        "step_number": 3,
+        "step_name": "삼각비 값 계산",
+        "student_work": "√3/2 - √2/2 = (√3 - √2)/2",
+        "status": "Incorrect",
+        "points_earned": 0,
+        "points_possible": 2,
+        "evaluation": "앞 단계에서 cos 30° 값을 잘못 파악하여 최종 계산 결과가 틀렸습니다. 주어진 값들을 이용한 뺄셈 연산 자체는 올바르게 수행했습니다.",
+        "error_type": "개념 오류",
+        "feedback": "앞 단계에서 cos 30° 값을 잘못 파악하여 최종 계산 결과가 틀렸습니다. 계산 과정 자체는 올바르게 수행했습니다."
+      }
+    ],
+    "final_score": 4,
+    "total_possible": 10,
+    "correct_answer": "0",
+    "student_answer": "(√3 - √2)/2",
+    "answer_match": false,
+    "overall_evaluation": {
+      "strengths": [
+        "sin 60°의 값을 정확하게 알고 있습니다.",
+        "분수 형태의 뺄셈 계산 과정을 올바르게 수행했습니다."
+      ],
+      "weaknesses": [
+        "cos 30°의 값을 잘못 알고 있습니다.",
+        "특수각의 삼각비 값을 혼동하는 경향이 있습니다."
+      ],
+      "summary": "학생은 sin 60°의 값은 정확히 알고 있었으나, cos 30°의 값을 √2/2로 잘못 파악하여 최종 답이 틀렸습니다. 주어진 값들을 이용한 뺄셈 계산 과정 자체는 올바르게 수행했습니다."
+    },
+    "detailed_feedback": "안녕하세요, 학생! 주어진 문제 sin 60° - cos 30° 풀이에 대해 채점했습니다. sin 60°의 값은 √3/2로 정확하게 알고 있었고, 이는 매우 잘했습니다. 하지만 cos 30°의 값을 √2/2로 잘못 알고 있었습니다. cos 30°의 올바른 값은 √3/2입니다. 이 부분에서 개념 오류가 발생하여 최종 답이 틀리게 되었습니다. 두 값을 이용한 뺄셈 계산 과정 자체는 올바르게 수행했으나, 초기 값 설정 오류로 인해 정답에 도달하지 못했습니다. 특수각의 삼각비 값을 다시 한번 꼼꼼히 암기하고, 헷갈리는 부분은 그림을 그려가며 확인하는 연습을 해보세요.",
+    "improvement_suggestions": [
+      "특수각(30°, 45°, 60°)의 삼각비 값을 정확하게 암기하고 이해하는 연습을 하세요.",
+      "특히 sin과 cos 값, 그리고 각도에 따른 변화를 주의 깊게 살펴보세요.",
+      "단위원을 이용하거나 직각삼각형을 그려서 특수각의 삼각비 값을 유도하는 연습을 해보세요."
+    ]
+  },
+  "timestamp": "2025-12-17T11:04:36.740675"
+}

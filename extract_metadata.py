@@ -9,12 +9,14 @@
 
 import json
 import argparse
+import re
 
 from pathlib import Path
 from datetime import datetime
 from common.logger import init_logger
 from common.gemini import Gemini
 from common.prompt import create_metadata_extraction_prompt
+from common.utils import fix_json_escaping
 import pandas as pd
 
 
@@ -76,7 +78,9 @@ class MetadataExtractor:
 
             # Gemini API 호출
             curriculum_response = self.gemini.call_extract_metadata(curriculum_contents)
-            curriculum_info = json.loads(curriculum_response)
+            # 백슬래시 이스케이프 수정
+            curriculum_response_fixed = fix_json_escaping(curriculum_response)
+            curriculum_info = json.loads(curriculum_response_fixed)
 
             self.logger.info(f"  ✓ [1-1단계] curriculum 선택 완료")
             self.logger.info(f"    학년: {curriculum_info.get('학년', 'N/A')}, 교과목: {curriculum_info.get('교과목', 'N/A')}")
@@ -93,7 +97,9 @@ class MetadataExtractor:
 
             # Gemini API 호출
             achievement_response = self.gemini.call_extract_metadata(achievement_contents)
-            achievement_info = json.loads(achievement_response)
+            # 백슬래시 이스케이프 수정
+            achievement_response_fixed = fix_json_escaping(achievement_response)
+            achievement_info = json.loads(achievement_response_fixed)
 
             self.logger.info(f"  ✓ [1-2단계] 성취기준 코드 선택 완료")
             self.logger.info(f"    성취기준 코드: {achievement_info.get('성취기준_코드', 'N/A')}")
@@ -119,9 +125,14 @@ class MetadataExtractor:
             error_msg = f"JSON 파싱 실패: {e}"
             self.logger.error(error_msg)
             try:
-                self.logger.error(f"응답 내용: {curriculum_response[:500] if 'curriculum_response' in locals() else achievement_response[:500]}")
-            except:
-                pass
+                if 'curriculum_response' in locals():
+                    self.logger.error(f"원본 응답 내용:\n{curriculum_response}")
+                    self.logger.error(f"수정된 응답 내용:\n{curriculum_response_fixed}")
+                elif 'achievement_response' in locals():
+                    self.logger.error(f"원본 응답 내용:\n{achievement_response}")
+                    self.logger.error(f"수정된 응답 내용:\n{achievement_response_fixed}")
+            except Exception as log_error:
+                self.logger.error(f"로그 출력 실패: {log_error}")
             return None, False
         except Exception as e:
             error_msg = f"교육과정 정보 추출 중 예외 발생: {e}"
@@ -189,8 +200,11 @@ class MetadataExtractor:
             # Gemini API 호출
             response_text = self.gemini.call_extract_metadata(contents)
 
+            # 백슬래시 이스케이프 수정
+            response_text_fixed = fix_json_escaping(response_text)
+
             # JSON 파싱
-            metadata = json.loads(response_text)
+            metadata = json.loads(response_text_fixed)
 
             # ===== 3단계: 1단계와 2단계 결과 병합 =====
             # 2단계에서 나온 curriculum_mapping을 1단계 결과로 교체
@@ -213,6 +227,12 @@ class MetadataExtractor:
         except json.JSONDecodeError as e:
             error_msg = f"JSON 파싱 실패: {e}"
             self.logger.error(error_msg)
+            try:
+                if 'response_text' in locals():
+                    self.logger.error(f"원본 응답 내용:\n{response_text}")
+                    self.logger.error(f"수정된 응답 내용:\n{response_text_fixed}")
+            except Exception as log_error:
+                self.logger.error(f"로그 출력 실패: {log_error}")
             self.stats['errors'].append({"problem_id": problem_id, "error": error_msg})
             return None, False
         except Exception as e:
@@ -328,6 +348,12 @@ class MetadataExtractor:
         Returns:
             bool: 모든 과정 성공(True), 그렇지 않으면 (False)
         """
+        # 이미 메타데이터 파일이 있으면 건너뛰기
+        metadata_file = self.output_dir / f"{problem_id}_metadata.json"
+        if metadata_file.exists():
+            self.logger.info(f"메타데이터가 이미 존재합니다. 건너뜁니다: {problem_id}")
+            return True
+
         self.stats['total'] += 1
         metadata, success = self.extract_single_problem(problem_id, total_points)
 

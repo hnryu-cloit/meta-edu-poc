@@ -3,6 +3,7 @@ from pathlib import Path
 import json
 from common.logger import init_logger
 from common.gemini import Gemini
+from common.utils import fix_json_escaping
 
 
 # 로거 초기화
@@ -197,8 +198,11 @@ def analyze_student_solution(problem_id, student_solution_filename, metadata):
         # Gemini API 호출 (재시도 로직 포함)
         response_text = gemini_client.call_extract_metadata(contents)
 
+        # 백슬래시 이스케이프 수정
+        response_text_fixed = fix_json_escaping(response_text)
+
         # JSON 파싱
-        analysis_json = json.loads(response_text)
+        analysis_json = json.loads(response_text_fixed)
         logger.info(f"✓ 문제 {problem_id}, 풀이 {student_solution_filename} 분석 성공")
         return analysis_json, True
 
@@ -346,8 +350,11 @@ def analyze_solution(problem_id, solution_image_path, question_image_path):
         # Gemini API 호출 (재시도 로직 포함)
         response_text = gemini_client.call_extract_metadata(contents)
 
+        # 백슬래시 이스케이프 수정
+        response_text_fixed = fix_json_escaping(response_text)
+
         # JSON 파싱
-        analysis_json = json.loads(response_text)
+        analysis_json = json.loads(response_text_fixed)
         logger.info(f"✓ 문제 {problem_id} 분석 성공")
         return analysis_json, True
 

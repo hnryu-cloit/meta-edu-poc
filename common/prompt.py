@@ -255,17 +255,17 @@ def create_analysis_prompt(curriculum, achievement_standards, consideration, met
 
     prompt = f"""
         당신은 수학 문제 채점 전문가입니다. 학생의 필기 풀이를 분석하고 공정하게 채점해야 합니다.
-                
+
         **채점 가이드(메타데이터):**
         {json.dumps(metadata, ensure_ascii=False, indent=2)}
-        
+
         **과제:**
         이제 제공된 두 이미지를 분석하세요:
         1. 첫 번째 이미지: 수학 문제
         2. 두 번째 이미지: 학생의 필기 풀이
-        
+
         위의 채점 가이드를 기준으로 학생의 풀이를 단계별로 평가하세요.
-        
+
         **중요 평가 원칙:**
         1. **모범답안과 다른 풀이도 인정:** 학생이 모범답안과 다른 방법으로 풀었더라도, 수학적으로 타당하다면 동일하게 점수를 부여하세요.
         2. **부분 점수 부여:** 최종 답이 틀렸더라도 중간 과정이 올바르다면 부분 점수를 부여하세요.
@@ -274,12 +274,20 @@ def create_analysis_prompt(curriculum, achievement_standards, consideration, met
            - **개념 오류:** 수학적 개념을 잘못 이해한 경우
            - **풀이 중단:** 특정 단계에서 더 이상 진행하지 못한 경우
         4. **근거 명시:** 모든 점수에 대해 명확한 근거를 제시하세요.
-        
+        5. **수학적 방법 검증:** 학생이 사용한 수학적 공식, 정리, 개념이 올바른지 검증하세요.
+
         **출력 형식:**
         반드시 다음 JSON 형식으로만 출력하세요:
-        
+
         {{
           "student_approach": "학생이 사용한 풀이 방법 요약",
+          "mathematical_methods_used": [
+            {{
+              "method_name": "사용된 수학적 방법/공식/정리 명칭",
+              "is_valid": true/false,
+              "validation_comment": "해당 방법이 이 문제에 적절한지 또는 올바르게 적용되었는지에 대한 평가"
+            }}
+          ],
           "is_alternative_method": true/false,
           "step_by_step_evaluation": [
             {{
@@ -311,7 +319,7 @@ def create_analysis_prompt(curriculum, achievement_standards, consideration, met
             "구체적인 개선 방안3"
           ]
         }}
-        
+
         **주의 사항:**
         - 순수 하게 JSON만 출력하세요. JSON 외의 텍스트를 포함하지 마세요.
         - 학생의 풀이가 읽기 어렵거나 불완전하더라도 최대한 이해하려 노력하고 부분 점수를 공정하게 부여하세요.
