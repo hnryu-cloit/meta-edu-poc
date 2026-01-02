@@ -8,6 +8,8 @@
 - **3단계 메타데이터 추출**: 교육과정 선택 → 성취기준 선택 → 채점 가이드 생성
 - **문제별 객관적 채점기준 생성**: 일관된 채점 가이드 자동 생성
 - **학생 필기 풀이 자동 분석**: 단계별 평가 및 구체적 피드백 제공
+- **다중 OCR 엔진 지원**: LaTeX-OCR, Nougat-LaTeX 등 수식 인식 엔진 선택 가능
+- **바운딩 박스 시각화**: 틀린 단계를 형광펜 효과로 표시하여 오류 위치 직관적 파악
 - **Gemini 기반 자동 채점**: 대규모 언어 모델의 추론 능력 활용
 
 ## 2. PoC 시나리오
@@ -71,9 +73,11 @@ meta-edu-poc/
 ├── common/
 │   ├── gemini.py          # Gemini API 클라이언트
 │   ├── logger.py          # 로깅 설정
-│   └── prompt.py          # 프롬프트 템플릿
+│   ├── prompt.py          # 프롬프트 템플릿
+│   └── bbox_utils.py      # 바운딩 박스 유틸리티
 ├── services/
-│   └── problem_service.py # 문제 처리 비즈니스 로직
+│   ├── problem_service.py # 문제 처리 비즈니스 로직
+│   └── ocr_service.py     # OCR 엔진 인터페이스
 ├── resource/
 │   ├── question/          # 문제 이미지
 │   ├── commentary/        # 모범답안 이미지
@@ -81,7 +85,7 @@ meta-edu-poc/
 │   ├── list.csv           # 처리할 풀이 목록
 │   ├── achievement_standards.csv  # 성취기준
 │   ├── consideration.csv  # 고려사항
-│   └── curriculum.csv     # 교육과정     
+│   └── curriculum.csv     # 교육과정
 ├── extract_metadata.py    # 메타데이터 추출 전용 스크립트
 ├── main.py                # 메인 실행 스크립트
 ├── dashboard.py           # 채점 결과 시각화 대시보드
@@ -101,6 +105,14 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 # 의존성 설치
 pip install -r requirements.txt
 ```
+
+**주요 의존성**:
+- `google-cloud-aiplatform`, `google-genai`: Gemini API 클라이언트
+- `pix2tex[gui]`: LaTeX-OCR 엔진 (기본)
+- `nougat-ocr`: Nougat-LaTeX OCR 엔진
+- `torch`: PyTorch (OCR 엔진용)
+- `streamlit`: 대시보드 UI
+- `pillow`: 이미지 처리
 
 ### 2. 환경 변수 설정
 
@@ -140,12 +152,20 @@ python extract_metadata.py --from-directory
 
 #### 4-2. 2단계: 학생 풀이 자동 채점 (메타데이터 필수)
 ```bash
-# list.csv의 모든 학생 풀이 자동 채점
+# list.csv의 모든 학생 풀이 자동 채점 (기본: LaTeX-OCR 엔진)
 python main.py
+
+# OCR 엔진 선택 옵션
+python main.py --ocr-engine latex_ocr    # LaTeX-OCR (pix2tex) - 기본값
+python main.py --ocr-engine nougat_latex # Nougat-LaTeX
 ```
 
 **전제 조건**: `metadata/` 디렉토리에 문제별 메타데이터 파일이 존재해야 합니다.
 **출력 결과**: `results/batch_{timestamp}/` 디렉토리에 채점 결과 저장
+
+**OCR 엔진 선택 가이드**:
+- `latex_ocr` (pix2tex): 수식 위주 이미지에 최적화, 빠른 처리 속도
+- `nougat_latex`: 논문 형식의 복잡한 문서에 적합, 상대적으로 느림
 
 #### 4-3. 결과 시각화: 대시보드 실행
 ```bash
@@ -158,7 +178,10 @@ streamlit run dashboard.py
 
 **기능**:
 - **홈 탭**: 전체 통계 요약, 점수 분포 차트, 문제별 성적 테이블
-- **문제별 학생풀이 분석 탭**: 각 학생 풀이의 상세 분석, 단계별 평가, 피드백
+- **문제별 학생풀이 분석 탭**:
+  - 각 학생 풀이의 상세 분석, 단계별 평가, 피드백
+  - **바운딩 박스 시각화**: 틀린 단계를 선택하면 해당 영역에 형광펜 효과 표시
+  - **인터랙티브 오버레이**: 단계별 색상 구분으로 오류 영역 시각적 확인
 - **문제 메타데이터 탭**: 교육과정 정보, 문제 분석, 풀이 단계 확인
 
 **전제 조건**: `results/batch_{timestamp}/` 디렉토리에 채점 결과가 존재해야 합니다.
@@ -203,10 +226,26 @@ streamlit run dashboard.py
 - 부분 점수 부여
 - 구체적 피드백 생성
 
-### 3. 배치 처리 (main.py)
+### 3. OCR 엔진 인터페이스 (services/ocr_service.py)
+- **다중 OCR 엔진 지원**: 팩토리 패턴을 통한 유연한 엔진 선택
+  - **LaTeX-OCR (pix2tex)**: 수식 이미지 → LaTeX 변환에 특화
+  - **Nougat-LaTeX**: 수식 이미지 → LaTeX 변환에 특화
+  - **Google Cloud Vision**: 일반 텍스트 추출 (기존)
+- **통합 인터페이스**: 모든 엔진이 공통 `OCREngine` 추상 클래스 구현
+- **바운딩 박스 추출**: 텍스트와 함께 위치 정보 제공
+
+### 4. 바운딩 박스 시각화 (common/bbox_utils.py)
+- **단계별 그룹화**: OCR 바운딩 박스를 풀이 단계별로 자동 그룹화
+- **형광펜 효과**: 단계별 색상 할당 (노란색, 초록색, 주황색 등 8종)
+- **틀린 단계 필터링**: Incorrect/Partial 단계만 시각적으로 강조
+- **인터랙티브 오버레이**: 대시보드에서 선택적 단계 표시
+- **이미지 합성**: 원본 이미지 위에 투명 오버레이 레이어 생성
+
+### 5. 배치 처리 (main.py)
 - **전제 조건**: 사전 추출된 메타데이터 필수 (`metadata/` 디렉토리)
 - 초기화 시 모든 메타데이터를 메모리에 로드
 - list.csv의 모든 풀이 자동 처리
+- OCR 엔진 선택 옵션 지원 (`--ocr-engine`)
 - 메타데이터 캐시를 활용한 빠른 조회
 - 처리 통계 및 오류 로깅
 - 결과 파일 자동 저장
@@ -257,12 +296,45 @@ streamlit run dashboard.py
   "analysis": {
     "student_approach": "...",
     "is_alternative_method": false,
-    "step_by_step_evaluation": [ "..." ],
+    "step_by_step_evaluation": [
+      {
+        "step_number": 1,
+        "step_name": "문제 이해",
+        "status": "Correct",
+        "points_earned": 3,
+        "points_possible": 3,
+        "feedback": "..."
+      }
+    ],
     "final_score": 85,
     "total_possible": 100,
     "overall_evaluation": { },
     "detailed_feedback": "...",
-    "improvement_suggestions": [ "..." ]
+    "improvement_suggestions": [ "..." ],
+    "ocr_data": {
+      "engine": "latex_ocr",
+      "all_latex": [
+        {
+          "text": "x^2 + 2x + 1 = 0",
+          "bbox": {"x": 100, "y": 50, "width": 200, "height": 30},
+          "level": "latex"
+        }
+      ],
+      "step_grouped_bboxes": {
+        "step_1": [
+          {
+            "text": "x^2 + 2x + 1 = 0",
+            "bbox": {"x": 100, "y": 50, "width": 200, "height": 30},
+            "color": {"name": "yellow", "rgba": "rgba(255,255,0,0.2)", "border": "#FFD700"},
+            "step_number": 1,
+            "step_name": "문제 이해",
+            "step_status": "Incorrect",
+            "feedback": "이차방정식 형태로 정리 필요"
+          }
+        ]
+      },
+      "total_latex_count": 1
+    }
   },
   "timestamp": "2025-11-28T..."
 }
@@ -277,8 +349,12 @@ streamlit run dashboard.py
    - 학생풀이: `{문제번호}-{회차}.png`
 3. **처리 시간**: (현재, gemini-2.5-flash 기준)
    - 메타데이터 추출: 문제당 평균 40-60초 (3단계 프로세스)
-   - 학생 풀이 분석: 풀이당 평균 10-20초
-4. **교육과정 데이터**: `curriculum.csv`, `achievement_standards.csv`, `consideration.csv`는 2022 개정 교육과정 기준입니다.
+   - 학생 풀이 분석: 풀이당 평균 10-20초 (OCR 처리 포함)
+4. **OCR 엔진 선택**:
+   - **LaTeX-OCR (pix2tex)**: 수식 위주 이미지에 권장, CPU 환경에서도 빠른 처리
+   - **Nougat-LaTeX**: GPU 환경 권장, 복잡한 문서 처리 시 더 정확
+   - 첫 실행 시 모델 다운로드로 인한 지연 발생 가능
+5. **교육과정 데이터**: `curriculum.csv`, `achievement_standards.csv`, `consideration.csv`는 2022 개정 교육과정 기준입니다.
 
 ## 문제 해결
 
@@ -310,3 +386,15 @@ streamlit run dashboard.py
 - .env 파일의 API_KEY, PROJECT_ID, LOCATION 확인
 - GCP 프로젝트에서 Gemini API가 활성화되어 있는지 확인
 - API 할당량 확인
+
+### OCR 엔진 오류
+**오류 메시지**: `OCR 엔진 초기화 실패` 또는 모델 로드 실패
+- PyTorch 설치 확인: `pip install torch`
+- OCR 라이브러리 설치 확인: `pip install pix2tex[gui] nougat-ocr`
+- GPU 사용 시 CUDA 호환성 확인
+- 첫 실행 시 모델 자동 다운로드를 위한 네트워크 연결 확인
+
+**느린 OCR 처리 속도**
+- GPU 사용 가능 여부 확인: `torch.cuda.is_available()`
+- CPU 환경에서는 `latex_ocr` 엔진 권장 (더 빠름)
+- 대용량 이미지는 사전에 크기 조정 고려

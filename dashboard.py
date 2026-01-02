@@ -429,9 +429,114 @@ with tab2:
                             solution_image_path = f"resource/solve/{solution_file}"
                             if os.path.exists(solution_image_path):
                                 st.markdown("#### 📷 학생 풀이")
-                                img_col1, img_col2, img_col3 = st.columns([1, 3, 1])
-                                with img_col2:
-                                    st.image(solution_image_path, width='stretch')
+
+                                # ========== 바운딩 박스 오버레이 ==========
+                                # OCR 데이터 확인
+                                ocr_data = analysis.get('ocr_data', {})
+                                grouped_bboxes = ocr_data.get('step_grouped_bboxes', {})
+
+                                if grouped_bboxes:
+                                    # 단계별 토글 버튼
+                                    st.markdown("##### 🎯 틀린 단계 표시")
+
+                                    # 틀린 단계만 필터링
+                                    incorrect_steps = []
+                                    step_info_map = {}
+
+                                    if 'step_by_step_evaluation' in analysis:
+                                        for step_eval in analysis['step_by_step_evaluation']:
+                                            step_num = step_eval.get('step_number', 0)
+                                            step_key = f"step_{step_num}"
+                                            step_status = step_eval.get('status', 'Unknown')
+
+                                            # Incorrect 또는 Partial 단계만 포함
+                                            if step_status in ['Incorrect', 'Partial']:
+                                                incorrect_steps.append(step_key)
+                                                step_info_map[step_key] = {
+                                                    'name': step_eval.get('step_name', f'단계 {step_num}'),
+                                                    'feedback': step_eval.get('feedback', ''),
+                                                    'number': step_num
+                                                }
+
+                                    # 틀린 단계가 있으면 토글 버튼 표시
+                                    if incorrect_steps:
+                                        st.info(f"💡 틀린 단계를 선택하면 해당 영역이 형광펜으로 표시됩니다.")
+
+                                        # 각 틀린 단계별 체크박스
+                                        selected_steps = []
+                                        cols = st.columns(len(incorrect_steps))
+
+                                        for col_idx, step_key in enumerate(incorrect_steps):
+                                            step_info = step_info_map[step_key]
+                                            step_num = step_info['number']
+                                            step_name = step_info['name']
+
+                                            # 단계별 색상 가져오기
+                                            from common.bbox_utils import get_step_color
+                                            step_color = get_step_color(step_num)
+
+                                            with cols[col_idx]:
+                                                # 색상 표시와 함께 체크박스
+                                                checkbox_label = f"{step_num}단계"
+                                                is_checked = st.checkbox(
+                                                    checkbox_label,
+                                                    value=False,
+                                                    key=f"step_toggle_{solution_file}_{step_key}"
+                                                )
+
+                                                # 색상 표시
+                                                st.markdown(
+                                                    f'<div style="background-color: {step_color["rgba"]}; '
+                                                    f'border: 2px solid {step_color["border"]}; '
+                                                    f'padding: 5px; border-radius: 5px; text-align: center; '
+                                                    f'font-size: 0.8rem;">{step_color["name"]}</div>',
+                                                    unsafe_allow_html=True
+                                                )
+
+                                                if is_checked:
+                                                    selected_steps.append(step_key)
+
+                                        # 선택된 단계의 바운딩 박스 표시
+                                        if selected_steps:
+                                            st.markdown("##### 🔍 선택된 단계의 오류 영역")
+
+                                            # 이미지 오버레이 생성
+                                            from common.bbox_utils import create_interactive_bbox_overlay
+
+                                            overlay_html = create_interactive_bbox_overlay(
+                                                solution_image_path,
+                                                grouped_bboxes,
+                                                selected_steps,
+                                                width=800
+                                            )
+
+                                            st.markdown(overlay_html, unsafe_allow_html=True)
+
+                                            # 선택된 단계의 피드백 표시
+                                            for step_key in selected_steps:
+                                                step_info = step_info_map[step_key]
+                                                step_num = step_info['number']
+                                                step_name = step_info['name']
+                                                feedback = step_info['feedback']
+
+                                                st.warning(f"**{step_num}단계 ({step_name})**: {feedback}")
+                                        else:
+                                            # 선택된 단계가 없으면 원본 이미지 표시
+                                            img_col1, img_col2, img_col3 = st.columns([1, 3, 1])
+                                            with img_col2:
+                                                st.image(solution_image_path, width='stretch')
+                                    else:
+                                        # 틀린 단계가 없으면 원본 이미지만 표시
+                                        img_col1, img_col2, img_col3 = st.columns([1, 3, 1])
+                                        with img_col2:
+                                            st.image(solution_image_path, width='stretch')
+                                else:
+                                    # OCR 데이터가 없으면 원본 이미지만 표시
+                                    img_col1, img_col2, img_col3 = st.columns([1, 3, 1])
+                                    with img_col2:
+                                        st.image(solution_image_path, width='stretch')
+                                # ==========================================
+
                                 st.markdown("---")
 
                             # 수학적 방법 검증 표시

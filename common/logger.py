@@ -36,6 +36,9 @@ def init_logger(
     logger = logging.getLogger(APP_LOGGER_NAME)
     logger.setLevel(log_level)
 
+    # 부모 로거로의 전파 방지
+    logger.propagate = False
+
     # 기존 핸들러 제거
     for handler in logger.handlers[:]:
         logger.removeHandler(handler)

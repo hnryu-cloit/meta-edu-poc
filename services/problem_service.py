@@ -138,7 +138,7 @@ def get_problems_from_list():
         return []
 
 
-def analyze_student_solution(problem_id, student_solution_filename, metadata):
+def analyze_student_solution(problem_id, student_solution_filename, metadata, ocr_engine_name: str = 'latex_ocr'):
     """
     추출된 채점 기준(메타데이터)을 바탕으로 학생의 풀이 이미지를 분석하고 채점합니다.
 
@@ -146,12 +146,15 @@ def analyze_student_solution(problem_id, student_solution_filename, metadata):
         problem_id (str): 분석할 문제의 고유 ID.
         student_solution_filename (str): 학생 풀이 이미지 파일명.
         metadata (dict): `extract_metadata`를 통해 사전에 추출된 채점 기준.
+        ocr_engine_name (str): OCR 엔진 이름 ('latex_ocr', 'nougat_latex').
 
     Returns:
         tuple: (analysis_result, success_bool)
                성공 시 (분석 결과 딕셔너리, True), 실패 시 (None, False).
     """
     from common.prompt import create_analysis_prompt
+    from services.ocr_service import get_ocr_engine
+    from common.bbox_utils import group_bboxes_by_step
 
     # 메타데이터에서 curriculum_mapping 정보를 가져와서 problem_data 생성
     curriculum_mapping = metadata.get('curriculum_mapping', {})
@@ -203,6 +206,59 @@ def analyze_student_solution(problem_id, student_solution_filename, metadata):
 
         # JSON 파싱
         analysis_json = json.loads(response_text_fixed)
+
+        # ========== OCR 데이터 추가==========
+        try:
+            logger.info(f"OCR 처리 시작 ({ocr_engine_name} 엔진): {student_solution_filename}")
+            ocr_engine = get_ocr_engine(ocr_engine_name)
+            
+            if ocr_engine:
+                ocr_results = ocr_engine.extract_latex(str(solution_image_path))
+                
+                # `group_bboxes_by_step` 함수는 이전 Google Vision 출력 형식에 맞춰져 있을 수 있음
+                # 새로운 엔진의 출력은 [{ "text": "...", "bbox": [...] }] 형식이므로,
+                # 호환성을 위해 `group_bboxes_by_step`에 맞게 입력을 조정하거나,
+                # 현재는 단순히 전체 결과를 저장합니다.
+                
+                # NOTE: 현재의 LatexOCREngine과 NougatLatexOCREngine은 이미지 전체에 대한
+                # 단일 결과를 반환하므로, 단계별 그룹화는 의미가 없을 수 있습니다.
+                # bbox 형식을 group_bboxes_by_step이 기대하는 x,y,width,height로 변환
+                compatible_ocr_results = []
+                for res in ocr_results:
+                    x_min, y_min, x_max, y_max = res['bbox']
+                    compatible_ocr_results.append({
+                        "text": res['text'],
+                        "bbox": {"x": x_min, "y": y_min, "width": x_max - x_min, "height": y_max - y_min},
+                        "level": "latex" # 새로운 레벨 추가
+                    })
+
+                step_grouped_bboxes = {}
+                if 'step_by_step_evaluation' in analysis_json:
+                    step_evaluations = analysis_json['step_by_step_evaluation']
+                    # 이전 group_bboxes_by_step 함수가 호환된다면 그대로 사용
+                    step_grouped_bboxes = group_bboxes_by_step(compatible_ocr_results, step_evaluations)
+
+                analysis_json['ocr_data'] = {
+                    'engine': ocr_engine_name,
+                    'all_latex': compatible_ocr_results,
+                    'step_grouped_bboxes': step_grouped_bboxes,
+                    'total_latex_count': len(compatible_ocr_results)
+                }
+                logger.info(f"OCR 완료: {len(compatible_ocr_results)}개 LaTeX 추출")
+            else:
+                raise ValueError(f"OCR 엔진 '{ocr_engine_name}'을 찾을 수 없습니다.")
+
+        except Exception as ocr_error:
+            logger.warning(f"OCR 처리 실패 (분석은 계속 진행): {ocr_error}")
+            analysis_json['ocr_data'] = {
+                'engine': ocr_engine_name,
+                'all_latex': [],
+                'step_grouped_bboxes': {},
+                'total_latex_count': 0,
+                'error': str(ocr_error)
+            }
+        # ==========================================
+
         logger.info(f"✓ 문제 {problem_id}, 풀이 {student_solution_filename} 분석 성공")
         return analysis_json, True
 

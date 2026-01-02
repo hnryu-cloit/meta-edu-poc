@@ -13,8 +13,7 @@ import vertexai
 from common.logger import timefn
 
 # CSV 로깅을 위한 전역 변수
-BILLING_CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                "../results/billing.csv")
+BILLING_CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../results/billing.csv")
 csv_lock = threading.Lock()
 
 def encode_image_to_base64(file_path: str) -> str:
