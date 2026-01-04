@@ -250,6 +250,30 @@ streamlit run dashboard.py
 - 처리 통계 및 오류 로깅
 - 결과 파일 자동 저장
 
+### 6. Google Vision 기반 시각화 및 정밀 분석 (실험적)
+Google Vision API의 결과를 활용하여 각 바운딩 박스에 고유 ID와 색상을 부여하고, 이를 기반으로 Gemini가 정확한 오류 위치를 식별하도록 하는 고급 분석 프로세스입니다.
+
+**프로세스:**
+1. **시각화 (`visualize_unique_bboxes.py`)**: 
+   - Google Vision API 결과(`results/testing/*.json`)를 로드합니다.
+   - 각 텍스트 블록에 **고유 ID**와 **고유 색상**을 할당합니다.
+   - 원본 이미지 위에 이를 시각화하여 저장합니다 (`results/visualized/`).
+   - ID와 텍스트 매핑 정보(`_map.json`)를 생성합니다.
+
+2. **Gemini 정밀 분석 알고리즘**:
+   - **입력**: 
+     - 메타데이터 (채점 기준)
+     - ID 매핑 정보 (`_map.json`)
+   - **동작**:
+     - Gemini에게 각 ID가 어떤 풀이 단계에 속하는지 분류하게 합니다.
+     - 풀이가 틀린 경우, 특정 **ID**를 지목하여 오류 위치를 정확히 식별합니다.
+   - **효과**: 기존의 좌표 기반 매칭보다 더 정확하게 "어떤 수식/숫자에서 틀렸는지"를 핀포인트로 지적할 수 있습니다.
+
+**실행 방법:**
+```bash
+python visualize_unique_bboxes.py
+```
+
 ## 출력 형식
 
 ### 메타데이터 (metadata/{문제번호}_metadata.json)

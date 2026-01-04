@@ -3,7 +3,7 @@ from pathlib import Path
 import json
 from common.logger import init_logger
 from common.gemini import Gemini
-from common.utils import fix_json_escaping
+from utils.utils import fix_json_escaping
 
 
 # 로거 초기화
@@ -154,7 +154,7 @@ def analyze_student_solution(problem_id, student_solution_filename, metadata, oc
     """
     from common.prompt import create_analysis_prompt
     from services.ocr_service import get_ocr_engine
-    from common.bbox_utils import group_bboxes_by_step
+    from utils.grade_visualizer import group_bboxes_by_step
 
     # 메타데이터에서 curriculum_mapping 정보를 가져와서 problem_data 생성
     curriculum_mapping = metadata.get('curriculum_mapping', {})

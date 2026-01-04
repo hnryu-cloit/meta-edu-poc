@@ -254,7 +254,7 @@ def create_analysis_prompt(curriculum, achievement_standards, consideration, met
     """
 
     prompt = f"""
-        당신은 수학 문제 채점 전문가입니다. 학생의 필기 풀이를 분석하고 공정하게 채점해야 합니다.
+        당신은 수학 전문가 입니다. 학생의 필기 풀이를 분석하고 공정하게 채점해야 합니다.
 
         **채점 가이드(메타데이터):**
         {json.dumps(metadata, ensure_ascii=False, indent=2)}
@@ -325,4 +325,71 @@ def create_analysis_prompt(curriculum, achievement_standards, consideration, met
         - 학생의 풀이가 읽기 어렵거나 불완전하더라도 최대한 이해하려 노력하고 부분 점수를 공정하게 부여하세요.
         - 필기가 흐려서 판독이 어려운 경우 그 사실을 피드백에 명시하세요.
         """
+    return prompt
+
+
+def create_vision_analysis_prompt(metadata, box_map):
+    """
+    Google Vision API 기반으로 시각화된(ID가 표시된) 이미지를 분석하여,
+    오류가 발생한 정확한 위치(Box ID)를 식별하는 프롬프트를 생성합니다.
+
+    Args:
+        metadata (dict): 채점 가이드 (메타데이터)
+        box_map (list): 바운딩 박스 ID와 텍스트 매핑 정보
+                        [{"id": 0, "text": "...", "box": [...]}, ...]
+
+    Returns:
+        str: Vision 기반 정밀 분석용 프롬프트
+    """
+    
+    # 텍스트 매핑 정보를 문자열로 변환 (컨텍스트 제공용)
+    box_map_str = json.dumps(box_map, ensure_ascii=False, indent=1)
+
+    prompt = f"""
+        당신은 수학 전문가이자 정밀한 풀이 분석가입니다.
+        제공된 이미지는 학생의 필기 풀이 위에 컴퓨터 비전 기술로 텍스트 블록을 감지하고 **고유 ID(숫자)**를 붙인 것입니다.
+        
+        **입력 자료:**
+        1. **채점 가이드(메타데이터):**
+        {json.dumps(metadata, ensure_ascii=False, indent=2)}
+        
+        2. **텍스트 블록 ID 매핑 정보 (참고용):**
+        {box_map_str}
+        
+        **과제:**
+        제공된 **'ID가 표시된 풀이 이미지'**를 시각적으로 정밀하게 분석하여 다음을 수행하세요:
+        
+        1. **단계별 풀이 검증:** 채점 가이드의 단계별 기준에 따라 학생의 풀이를 평가하세요.
+        2. **오류 위치 핀포인트:** 만약 풀이 과정에 오류(계산 실수, 개념 오류 등)가 있다면, **그 오류가 처음 시작된 정확한 위치의 'Box ID'**를 찾으세요.
+           - 이미지를 보고 오류가 있는 수식이나 숫자가 포함된 박스의 ID 번호를 확인하세요.
+           - 오류가 없다면 Box ID는 -1 또는 null입니다.
+        
+        **출력 형식:**
+        반드시 다음 JSON 형식으로만 출력하세요:
+        
+        {{
+          "student_approach": "풀이 방법 요약",
+          "is_correct": true/false,
+          "step_by_step_analysis": [
+             {{
+                "step_number": 1,
+                "status": "Correct/Incorrect",
+                "description": "수행 내용 및 평가",
+                "related_box_ids": [1, 2, 3]
+             }},
+             ...
+          ],
+          "first_error_location": {{
+             "has_error": true/false,
+             "error_step_number": 오류가 발생한 단계 번호 (없으면 null),
+             "error_box_id": 오류가 포함된 가장 구체적인 Box ID (숫자, 없으면 null),
+             "reason": "오류라고 판단한 근거"
+          }},
+          "final_feedback": "학생에게 줄 피드백"
+        }}
+        
+        **주의사항:**
+        - `error_box_id`는 이미지에 표시된 **숫자 ID**와 정확히 일치해야 합니다.
+        - 텍스트 매핑 정보를 참고하되, 최종 판단은 **이미지**를 보고 하세요 (OCR 텍스트가 부정확할 수 있음).
+    """
     return prompt

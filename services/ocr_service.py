@@ -9,16 +9,11 @@ OCR 서비스 모듈
 """
 import os
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 from PIL import Image
-import torch
-from pix2tex.cli import LatexOCR as Pix2TexOCR
 
 from common.logger import init_logger
-
-# Google Vision 관련 import는 필요할 때만 로드되도록 클래스 내부로 이동
-# from google.cloud import vision
 
 logger = init_logger()
 
@@ -50,9 +45,13 @@ class LatexOCREngine(OCREngine):
 
     def __init__(self):
         try:
+            from pix2tex.cli import LatexOCR as Pix2TexOCR
             # pix2tex 모델 초기화
             self.model = Pix2TexOCR()
             logger.info("LaTeX-OCR (pix2tex) 엔진 초기화 완료")
+        except ImportError:
+            logger.error("LaTeX-OCR 라이브러리가 설치되지 않았습니다. `pip install pix2tex[gui] torch`")
+            raise
         except Exception as e:
             logger.error(f"LaTeX-OCR 엔진 초기화 실패: {e}")
             raise
@@ -88,6 +87,7 @@ class NougatLatexOCREngine(OCREngine):
 
     def __init__(self):
         try:
+            import torch
             from transformers import VisionEncoderDecoderModel, AutoTokenizer
 
             # Nougat 모델과 토크나이저 초기화
@@ -106,6 +106,9 @@ class NougatLatexOCREngine(OCREngine):
             self.model.eval()
 
             logger.info(f"Nougat-LaTeX 엔진 초기화 완료 (device: {self.device})")
+        except ImportError:
+            logger.error("Nougat-OCR 관련 라이브러리가 설치되지 않았습니다. `pip install nougat-ocr torch transformers`")
+            raise
         except Exception as e:
             logger.error(f"Nougat-LaTeX 엔진 초기화 실패: {e}")
             raise
@@ -116,6 +119,7 @@ class NougatLatexOCREngine(OCREngine):
         Nougat는 텍스트 라인별로 결과를 반환하며, LaTeX 수식 부분을 파싱해야 합니다.
         """
         try:
+            import torch
             from transformers import NougatImageProcessor
 
             # 이미지 로드
@@ -158,12 +162,65 @@ class NougatLatexOCREngine(OCREngine):
             return []
 
 
+class MockOCREngine(OCREngine):
+    """테스트용 Mock OCR 엔진"""
+    
+    def __init__(self):
+        logger.info("Mock OCR 엔진이 초기화되었습니다. (더미 데이터 반환)")
+
+    def extract_latex(self, image_path: str) -> List[Dict[str, Any]]:
+        """더미 LaTeX 데이터 반환"""
+        logger.info(f"Mock OCR: {image_path}에서 더미 데이터 추출")
+        try:
+            img = Image.open(image_path)
+            width, height = img.size
+        except:
+            width, height = 1000, 1000
+
+        # 임의의 더미 박스 생성 (이미지 중앙)
+        dummy_bbox = [
+            int(width * 0.1), int(height * 0.1), 
+            int(width * 0.9), int(height * 0.5)
+        ]
+        
+        return [{
+            "text": "x^2 + 2x + 1 = 0",
+            "bbox": dummy_bbox
+        }]
+
+    def extract_text_with_bboxes(self, image_path: str, levels: List[str] = ['block']) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        """더미 텍스트/BBox 데이터 반환"""
+        logger.info(f"Mock OCR: {image_path}에서 더미 텍스트/BBox 추출")
+        try:
+            img = Image.open(image_path)
+            width, height = img.size
+        except:
+            width, height = 1000, 1000
+            
+        results = [
+            {
+                "text": "문제 풀이 과정입니다.",
+                "bbox": {"x": 50, "y": 50, "width": width - 100, "height": 100},
+                "vertices": [{"x": 50, "y": 50}, {"x": width-50, "y": 50}, {"x": width-50, "y": 150}, {"x": 50, "y": 150}],
+                "level": "block"
+            },
+            {
+                "text": "x = -1",
+                "bbox": {"x": 50, "y": 200, "width": 200, "height": 50},
+                "vertices": [{"x": 50, "y": 200}, {"x": 250, "y": 200}, {"x": 250, "y": 250}, {"x": 50, "y": 250}],
+                "level": "block"
+            }
+        ]
+        raw_response = {"info": "mock_data", "fullTextAnnotation": {"text": "dummy text"}}
+        return results, raw_response
+
+
 def get_ocr_engine(engine_name: str) -> Optional[OCREngine]:
     """
     지정된 이름의 OCR 엔진 인스턴스를 생성하여 반환하는 팩토리 함수
 
     Args:
-        engine_name (str): 사용할 엔진의 이름 ('latex_ocr' 또는 'nougat_latex')
+        engine_name (str): 사용할 엔진의 이름 ('latex_ocr', 'nougat_latex', 'google', 'mock')
 
     Returns:
         Optional[OCREngine]: 생성된 OCR 엔진 인스턴스. 지원하지 않는 이름일 경우 None.
@@ -174,9 +231,12 @@ def get_ocr_engine(engine_name: str) -> Optional[OCREngine]:
     elif engine_name == 'nougat_latex':
         logger.info("Nougat-LaTeX 엔진을 생성합니다.")
         return NougatLatexOCREngine()
-    # elif engine_name == 'google':
-    #     logger.info("Google Vision OCR 엔진을 생성합니다.")
-    #     return GoogleVisionOCREngine()
+    elif engine_name == 'google':
+        logger.info("Google Vision OCR 엔진을 생성합니다.")
+        return GoogleVisionOCREngine()
+    elif engine_name == 'mock':
+        logger.info("Mock OCR 엔진을 생성합니다.")
+        return MockOCREngine()
     else:
         logger.error(f"지원하지 않는 OCR 엔진입니다: {engine_name}")
         return None
@@ -207,7 +267,7 @@ class GoogleVisionOCREngine(OCREngine):
         """
         logger.warning("GoogleVisionOCREngine은 LaTeX가 아닌 일반 텍스트를 추출합니다.")
         # `extract_text_with_bboxes` 메소드를 호출하고 반환 형식을 맞춤
-        results = self.extract_text_with_bboxes(image_path, levels=['block'])
+        results, _ = self.extract_text_with_bboxes(image_path, levels=['block'])
         
         # OCREngine의 반환 형식에 맞게 변환
         formatted_results = []
@@ -220,9 +280,10 @@ class GoogleVisionOCREngine(OCREngine):
         return formatted_results
 
 
-    def extract_text_with_bboxes(self, image_path: str, levels: List[str] = ['word', 'paragraph', 'block']) -> List[Dict[str, Any]]:
-        """이미지에서 지정된 레벨의 텍스트와 바운딩 박스를 추출"""
+    def extract_text_with_bboxes(self, image_path: str, levels: List[str] = ['word', 'paragraph', 'block']) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        """이미지에서 지정된 레벨의 텍스트와 바운딩 박스를 추출하며, 원본 응답도 반환합니다."""
         from google.cloud import vision
+        from google.protobuf.json_format import MessageToDict
         try:
             with open(image_path, 'rb') as image_file:
                 content = image_file.read()
@@ -231,6 +292,9 @@ class GoogleVisionOCREngine(OCREngine):
 
             if response.error.message:
                 raise Exception(f"Vision API 오류: {response.error.message}")
+
+            # 원본 응답을 딕셔너리로 변환
+            raw_response = MessageToDict(response._pb)
 
             annotations = []
             if response.full_text_annotation:
@@ -246,28 +310,42 @@ class GoogleVisionOCREngine(OCREngine):
                                     annotations.append(self._parse_annotation(word, 'word'))
             
             logger.info(f"Google Vision OCR 완료: {len(annotations)}개 텍스트 영역 추출 ({image_path})")
-            return annotations
+            return annotations, raw_response
         except FileNotFoundError:
             logger.error(f"이미지 파일을 찾을 수 없습니다: {image_path}")
-            return []
+            return [], {}
         except Exception as e:
             logger.error(f"Google Vision OCR 처리 중 오류 발생: {e}", exc_info=True)
-            return []
+            return [], {}
 
     def _parse_annotation(self, entity, level: str) -> Dict[str, Any]:
         """Vision API의 응답 엔티티를 공통 형식으로 파싱"""
-        text = ''.join([symbol.text for symbol in entity.symbols]) if level == 'word' else entity.text
+        # 텍스트 추출 로직 개선 (단어 레벨이 아닐 경우 하위 요소들을 결합)
+        if level == 'word':
+            text = ''.join([symbol.text for symbol in entity.symbols])
+        else:
+            # Block이나 Paragraph는 여러 Word의 조합으로 텍스트 구성
+            word_texts = []
+            for para in (entity.paragraphs if level == 'block' else [entity]):
+                for word in para.words:
+                    word_texts.append(''.join([s.text for s in word.symbols]))
+            text = ' '.join(word_texts)
         
-        vertices = entity.bounding_box.vertices
-        x_coords = [v.x for v in vertices]
-        y_coords = [v.y for v in vertices]
+        vertices_obj = entity.bounding_box.vertices
+        # x, y 값이 누락된 경우(0인 경우) 대응하며 사용자 요청 포맷({"x":.., "y":..}) 준수
+        vertices = []
+        for v in vertices_obj:
+            vertices.append({"x": getattr(v, 'x', 0), "y": getattr(v, 'y', 0)})
+            
+        x_coords = [v["x"] for v in vertices]
+        y_coords = [v["y"] for v in vertices]
         x_min, y_min = min(x_coords), min(y_coords)
         x_max, y_max = max(x_coords), max(y_coords)
 
         return {
             "text": text,
             "bbox": {"x": x_min, "y": y_min, "width": x_max - x_min, "height": y_max - y_min},
-            "vertices": [[v.x, v.y] for v in vertices],
-            "confidence": entity.confidence,
+            "vertices": vertices,
+            "confidence": getattr(entity, 'confidence', 0.0),
             "level": level
         }

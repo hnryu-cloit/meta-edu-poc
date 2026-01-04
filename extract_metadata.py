@@ -15,7 +15,7 @@ from datetime import datetime
 from common.logger import init_logger
 from common.gemini import Gemini
 from common.prompt import create_metadata_extraction_prompt
-from common.utils import fix_json_escaping
+from utils.utils import fix_json_escaping
 import pandas as pd
 
 
