@@ -70,9 +70,13 @@ def visualize_bboxes_with_ids(
             # 다각형 그리기 [{"x":x1,"y":y1}, ...] -> [(x1,y1), (x2,y2), ...]
             poly_points = [(v.get('x', 0), v.get('y', 0)) for v in vertices]
             draw.polygon(poly_points, fill=fill_color, outline=outline_color, width=3)
-            # 라벨 위치는 첫 번째 좌표 근처
-            x_min = vertices[0].get('x', 0)
-            y_min = vertices[0].get('y', 0)
+            # 바운딩 박스 계산 (다각형의 최소/최대 좌표)
+            x_coords = [v.get('x', 0) for v in vertices]
+            y_coords = [v.get('y', 0) for v in vertices]
+            x_min = min(x_coords)
+            y_min = min(y_coords)
+            x_max = max(x_coords)
+            y_max = max(y_coords)
         else:
             # Bbox 정규화
             if isinstance(bbox_data, dict):

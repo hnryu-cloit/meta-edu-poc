@@ -1,21 +1,30 @@
 """
 OCR 서비스 모듈
 
-다양한 OCR 엔진을 선택하여 사용할 수 있는 인터페이스를 제공합니다.
-현재 지원하는 엔진:
+다양한 OCR 엔진을 선택하여 사용할 수 있는 인터페이스를 제공
+현재 지원 엔진:
+- Google Cloud Vision (기본)
 - LaTeX-OCR (pix2tex)
 - Nougat-LaTeX
-- Google Cloud Vision (기존)
 """
+
 import os
+from dotenv import load_dotenv
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Tuple
 
 from PIL import Image
-
 from common.logger import init_logger
 
+load_dotenv()
+
 logger = init_logger()
+
+CREDENTIALS_PATH = os.getenv("CREDENTIALS_PATH")
+if CREDENTIALS_PATH:
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = CREDENTIALS_PATH
+else:
+    logger.warning("CREDENTIALS_PATH가 .env 파일에 설정되지 않았습니다.")
 
 
 class OCREngine(ABC):
@@ -24,13 +33,11 @@ class OCREngine(ABC):
     @abstractmethod
     def extract_latex(self, image_path: str) -> List[Dict[str, Any]]:
         """
-        이미지에서 LaTeX 수식과 바운딩 박스를 추출합니다.
-
+        이미지에서 LaTeX 수식과 바운딩 박스를 추출
         Args:
             image_path (str): 분석할 이미지 파일 경로
-
         Returns:
-            List[Dict[str, Any]]: 추출된 LaTeX 정보 리스트.
+            List[Dict[str, Any]]: 추출된 LaTeX 정보 리스트
                 각 항목은 다음 형식:
                 {
                     "text": "추출된 LaTeX 수식",
@@ -188,7 +195,7 @@ class MockOCREngine(OCREngine):
             "bbox": dummy_bbox
         }]
 
-    def extract_text_with_bboxes(self, image_path: str, levels: List[str] = ['block']) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    def extract_text_with_bboxes(self, image_path: str) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """더미 텍스트/BBox 데이터 반환"""
         logger.info(f"Mock OCR: {image_path}에서 더미 텍스트/BBox 추출")
         try:
@@ -241,14 +248,11 @@ def get_ocr_engine(engine_name: str) -> Optional[OCREngine]:
         logger.error(f"지원하지 않는 OCR 엔진입니다: {engine_name}")
         return None
 
-# --- 기존 Google Vision OCR 코드 (참고 및 향후 사용을 위해 유지) ---
-
 class GoogleVisionOCREngine(OCREngine):
-    """Google Cloud Vision API를 사용하는 OCR 서비스 (리팩토링된 버전)"""
+    """Google Cloud Vision API를 사용하는 OCR 서비스"""
 
     def __init__(self):
         try:
-            # google-cloud-vision이 설치되어 있는지 확인
             from google.cloud import vision
             self.project_id = os.getenv('PROJECT_ID')
             self.client = vision.ImageAnnotatorClient()
@@ -266,7 +270,6 @@ class GoogleVisionOCREngine(OCREngine):
         대신 텍스트 블록과 바운딩 박스를 반환합니다.
         """
         logger.warning("GoogleVisionOCREngine은 LaTeX가 아닌 일반 텍스트를 추출합니다.")
-        # `extract_text_with_bboxes` 메소드를 호출하고 반환 형식을 맞춤
         results, _ = self.extract_text_with_bboxes(image_path, levels=['block'])
         
         # OCREngine의 반환 형식에 맞게 변환
@@ -281,11 +284,11 @@ class GoogleVisionOCREngine(OCREngine):
 
 
     def extract_text_with_bboxes(self, image_path: str, levels: List[str] = ['word', 'paragraph', 'block']) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-        """이미지에서 지정된 레벨의 텍스트와 바운딩 박스를 추출하며, 원본 응답도 반환합니다."""
+        """이미지에서 지정된 레벨의 텍스트와 바운딩 박스를 추출하며 원본 응답도 반환"""
         from google.cloud import vision
         from google.protobuf.json_format import MessageToDict
         try:
-            with open(image_path, 'rb') as image_file:
+            with (open(image_path, 'rb') as image_file):
                 content = image_file.read()
             image = vision.Image(content=content)
             response = self.client.document_text_detection(image=image)

@@ -271,7 +271,7 @@ def main() -> None:
     args = parser.parse_args()
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = f"results/batch_{timestamp}"
+    output_dir = f"results/old/batch_{timestamp}"
     metadata_dir = "metadata"
 
     logger = init_logger()

@@ -90,7 +90,7 @@ st.markdown("""
 
 def find_latest_result_dir():
     """가장 최근 결과 디렉토리 찾기"""
-    result_dirs = glob("results/batch_*")
+    result_dirs = glob("results/old/batch_*")
     if not result_dirs:
         return None
     return max(result_dirs, key=os.path.getmtime)
@@ -129,7 +129,7 @@ def load_metadata(problem_id):
 
 def get_available_batches():
     """사용 가능한 배치 목록 가져오기"""
-    result_dirs = glob("results/batch_*")
+    result_dirs = glob("results/old/batch_*")
     return sorted(result_dirs, key=os.path.getmtime, reverse=True)
 
 
@@ -502,7 +502,7 @@ with tab2:
                                             st.markdown("##### 🔍 선택된 단계의 오류 영역")
 
                                             # 이미지 오버레이 생성
-                                            from utils.bbox_utils import create_interactive_bbox_overlay
+                                            from utils.grade_visualizer import create_interactive_bbox_overlay
 
                                             overlay_html = create_interactive_bbox_overlay(
                                                 solution_image_path,
