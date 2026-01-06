@@ -29,17 +29,16 @@ from services.problem_service import get_problems_from_list
 from services.ocr_service import get_ocr_engine
 
 
-class IntegratedVisionGradingProcessor:
+class VisionGradingProcessor:
     """
     통합 Vision 기반 채점 프로세서
-
     main.py의 기능 + Vision 기반 고급 분석을 통합한 프로세서
     """
 
     def __init__(self, output_dir_name: str = None, metadata_dir: str = "metadata", ocr_engine_name: str = "google"):
         """
         Args:
-            output_dir_name (str): 출력 디렉토리 이름 (선택)
+            output_dir_name (str): 출력 디렉토리 이름 ( optional )
             metadata_dir (str): 메타데이터 디렉토리
             ocr_engine_name (str): 사용할 OCR 엔진 ('google', 'nougat_latex', 'latex_ocr')
         """
@@ -78,7 +77,7 @@ class IntegratedVisionGradingProcessor:
             "errors": []
         }
 
-        # 메타데이터 로드 (필수)
+        # 메타데이터 로드
         self._load_metadata()
 
         # 메타데이터가 하나도 없으면 에러
@@ -234,22 +233,24 @@ class IntegratedVisionGradingProcessor:
             self.logger.info("5단계: 통합 결과 저장 중...")
             analysis_path = self.dirs["analysis"] / f"{problem_id}_{solution_stem}_analysis.json"
 
-            # 최종 점수는 step_validation에서만 가져옴
-            final_score = step_validation.get('final_score', 'N/A')
-            total_possible = step_validation.get('total_possible', 'N/A')
+            # `step_validation` 결과가 최종 결과의 기반이 됨 (확장된 스키마)
+            final_output = step_validation
 
-            final_output = {
-                "problem_id": problem_id,
-                "solution_file": solution_filename,
-                "student_answer": student_data.get('학생답안', ''),
-                "expected_result": student_data.get('정답유무', ''),
-                "ocr_engine": self.ocr_engine_name,
-                "vision_analysis": vision_analysis,  # 오류 위치 핀포인트 (점수 제외)
-                "step_validation": step_validation,  # 실제 채점 + 점수
-                "final_score": final_score,  # step_validation의 점수 사용
-                "total_possible": total_possible,
-                "timestamp": datetime.now().isoformat()
-            }
+            # `vision_analysis`의 주요 정보(first_error_location)를 final_output에 병합
+            if vision_analysis and isinstance(vision_analysis, dict):
+                # first_error_location 객체 전체를 추가
+                final_output['first_error_location'] = vision_analysis.get('first_error_location')
+                
+                # 디버깅 및 추적을 위해 원본 vision_analysis 결과도 저장
+                final_output['_raw_vision_analysis'] = vision_analysis
+
+            # 다른 메타데이터 추가
+            final_output["problem_id"] = problem_id
+            final_output["solution_file"] = solution_filename
+            final_output["student_answer"] = student_data.get('학생답안', '')
+            final_output["expected_result"] = student_data.get('정답유무', '')
+            final_output["ocr_engine"] = self.ocr_engine_name
+            final_output["timestamp"] = datetime.now().isoformat()
 
             with open(analysis_path, 'w', encoding='utf-8') as f:
                 json.dump(final_output, f, ensure_ascii=False, indent=2)
@@ -257,12 +258,11 @@ class IntegratedVisionGradingProcessor:
             self.logger.info(f"✓ 처리 완료: {analysis_path}")
 
             # 간단한 요약 출력
-            self.logger.info(f"  최종 점수: {final_score} / {total_possible}")
+            self.logger.info(f"  최종 점수: {final_output.get('final_score', 'N/A')} / {final_output.get('total_possible', 'N/A')}")
 
-            if "first_error_location" in vision_analysis:
-                error_info = vision_analysis["first_error_location"]
-                if error_info.get("has_error"):
-                    self.logger.info(f"  첫 번째 오류: Step {error_info.get('error_step_number')}, Box ID {error_info.get('error_box_id')}")
+            error_info = final_output.get("first_error_location")
+            if error_info and error_info.get("has_error"):
+                self.logger.info(f"  첫 번째 오류: Step {error_info.get('error_step_number')}, Box ID {error_info.get('error_box_id')}")
 
             self.stats['success'] += 1
             return True
@@ -464,7 +464,7 @@ def main():
     logger.info(f"OCR 엔진: {args.ocr_engine}")
 
     try:
-        processor = IntegratedVisionGradingProcessor(
+        processor = VisionGradingProcessor(
             output_dir_name=args.output,
             metadata_dir=args.metadata_dir,
             ocr_engine_name=args.ocr_engine

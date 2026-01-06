@@ -126,13 +126,15 @@ class Gemini:
 
         try:
             target_image = self.client.files.upload(file=image)
+
+            # Build contents list dynamically to avoid including None
+            contents = [prompt, target_image]
+            if text:
+                contents.append(text)
+
             response = self.client.models.generate_content(
                 model=used_model,
-                contents=[
-                    prompt,
-                    target_image,
-                    text,
-                ],
+                contents=contents,
                 config={
                     "response_mime_type": response_type,
                     "temperature": 0,

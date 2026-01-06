@@ -404,78 +404,94 @@ def create_vision_analysis_prompt(metadata, box_map):
 
 def create_step_validation_prompt(metadata, box_map):
     """
-    학생 풀이의 각 스텝을 검증하고 LaTeX 근거와 함께 bbox ID를 출력하는 프롬프트 생성
+    학생의 풀이를 종합적으로 분석하고, Vision 정보를 활용하여 채점하는 프롬프트를 생성합니다.
+    기존 create_analysis_prompt 스키마를 확장합니다.
 
     Args:
         metadata (dict): 채점 가이드 (메타데이터)
         box_map (list): 바운딩 박스 ID와 텍스트 매핑 정보
-                        [{"id": 0, "text": "...", "box": [...]}, ...]
 
     Returns:
-        str: 스텝별 검증 프롬프트
+        str: 학생 풀이 종합 분석용 프롬프트
     """
 
     box_map_str = json.dumps(box_map, ensure_ascii=False, indent=1)
 
     prompt = f"""
-        당신은 수학 전문가입니다.
-        제공된 이미지는 학생의 필기 풀이 위에 **바운딩 박스 ID(숫자)**가 표시된 것입니다.
+        당신은 수학 전문가이자 정밀한 풀이 분석가입니다. 학생의 필기 풀이를 분석하고 공정하게 채점해야 합니다.
+        제공된 이미지는 학생의 필기 풀이 위에 컴퓨터 비전 기술로 텍스트 블록을 감지하고 **고유 ID(숫자)**를 붙인 것입니다.
 
-        **입력 자료:**
-        1. **채점 가이드(메타데이터):**
+        **채점 가이드(메타데이터):**
         {json.dumps(metadata, ensure_ascii=False, indent=2)}
 
-        2. **텍스트 블록 ID 매핑 정보 (참고용):**
+        **텍스트 블록 ID 매핑 정보(참고용):**
         {box_map_str}
 
         **과제:**
-        메타데이터의 solution_steps에 정의된 각 단계를 기준으로 학생의 풀이를 검증하세요.
-        각 스텝마다 다음을 수행해야 합니다:
+        이제 제공된 두 이미지를 분석하세요:
+        1. 첫 번째 이미지: 수학 문제
+        2. 두 번째 이미지: **ID가 표시된** 학생의 필기 풀이
 
-        1. **학생이 작성한 내용을 LaTeX 형식으로 추출**: 이미지에서 해당 스텝에 해당하는 수식/계산을 LaTeX로 표현하세요.
-        2. **정답 여부 확인**: 해당 스텝의 풀이가 올바른지 확인하세요.
-        3. **검증 근거 제시**: LaTeX로 어떻게 확인했는지 구체적인 수학적 근거를 제시하세요.
-        4. **관련 Box ID 명시**: 해당 스텝의 풀이가 포함된 모든 Box ID를 나열하세요.
+        위의 채점 가이드와 이미지의 ID를 기준으로 학생의 풀이를 단계별로 평가하고, 종합적인 분석 결과를 아래 JSON 형식에 맞춰 생성하세요.
+
+        **중요 평가 원칙:**
+        1. **단계 수 절대 유지:** `step_by_step_evaluation` 배열의 항목 수는 채점 가이드의 `solution_steps` 항목 수와 반드시 정확히 일치해야 합니다. 절대로 단계를 추가하거나 제거하지 마세요.
+        2. **모범답안과 다른 풀이도 인정:** 학생이 모범답안과 다른 방법으로 풀었더라도, 수학적으로 타당하다면 동일하게 점수를 부여하세요.
+        3. **부분 점수 부여:** 최종 답이 틀렸더라도 중간 과정이 올바르다면 부분 점수를 부여하세요.
+        4. **오류 분석:** 학생이 실수한 부분은 '계산 실수', '개념 오류', '풀이 중단'으로 구분하세요.
+        5. **근거 명시:** 모든 점수에 대해 명확한 근거를 제시하세요. `evaluation` 필드에 상세히 서술합니다.
+        6. **수학적 방법 검증:** 학생이 사용한 수학적 공식, 정리, 개념이 올바른지 검증하세요.
 
         **출력 형식:**
-        반드시 다음 JSON 형식으로만 출력하세요.
-        **중요:** step_validations의 각 항목은 메타데이터의 solution_steps와 1:1 매핑되어야 합니다.
+        반드시 다음 JSON 형식으로만 출력하세요. 기존 형식을 확장했으므로 모든 필드를 채워주세요.
 
         {{
-          "overall_summary": "전체 풀이에 대한 간단한 요약",
-          "step_validations": [
+          "student_approach": "학생이 사용한 풀이 방법 요약",
+          "mathematical_methods_used": [
             {{
-              "step_number": 메타데이터의 step_number,
-              "step_name": "메타데이터의 step_name",
-              "student_work_latex": "학생이 작성한 내용을 LaTeX 형식으로 표현 (예: $x = \\\\frac{{-b \\\\pm \\\\sqrt{{b^2-4ac}}}}{{2a}}$)",
-              "is_correct": true/false,
-              "validation_evidence": "어떻게 확인했는지에 대한 구체적인 수학적 근거. LaTeX 수식을 포함하여 단계별로 설명",
-              "related_box_ids": [관련된 Box ID 배열],
-              "error_description": "틀렸다면 어떤 오류인지 설명 (맞으면 null)",
-              "points_earned": 획득 점수,
-              "points_possible": 메타데이터의 배점
+              "method_name": "사용된 수학적 방법/공식/정리 명칭",
+              "is_valid": true/false,
+              "validation_comment": "해당 방법이 이 문제에 적절한지 또는 올바르게 적용되었는지에 대한 평가"
             }}
           ],
-          "final_score": 총 획득 점수,
-          "total_possible": 총 배점,
-          "overall_feedback": "전체적인 피드백"
+          "is_alternative_method": true/false,
+          "step_by_step_evaluation": [
+            {{
+              "step_number": 1,
+              "step_name": "단계 명칭 (메타데이터 기반)",
+              "student_work": "학생이 이 단계에서 수행한 작업 (텍스트 인식 기반)",
+              "student_work_latex": "학생의 작업을 LaTeX 형식으로 표현 (예: $x^2 + 1 = 0$)",
+              "status": "Correct/Incorrect/Partial/NotAttempted",
+              "points_earned": "획득 점수",
+              "points_possible": "배점 (메타데이터 기반)",
+              "evaluation": "이 단계에 대한 상세 평가. LaTeX를 포함한 수학적 검증 과정 포함.",
+              "error_type": "계산 실수/개념 오류/풀이 중단/없음",
+              "feedback": "학생에게 제공할 구체적 피드백",
+              "related_box_ids": [ "이 단계의 풀이와 관련된 모든 Box ID 배열" ]
+            }}
+          ],
+          "final_score": "총 획득점수",
+          "total_possible": "총 배점",
+          "correct_answer": "정답 (메타데이터 기반)",
+          "student_answer": "학생이 제시한 최종 답",
+          "answer_match": true/false,
+          "overall_evaluation": {{
+            "strengths": ["학생의 강점1", "학생의 강점2"],
+            "weaknesses": ["개선이 필요한 부분1", "개선이 필요한 부분2"],
+            "summary": "전체적인 평가 요약"
+          }},
+          "detailed_feedback": "학생이 이해할 수 있도록 작성된 상세한 피드백. 왜 이 점수가 나왔는지, 어떤 부분을 개선해야 하는지 명확히 설명.",
+          "improvement_suggestions": [
+            "구체적인 개선 방안1",
+            "구체적인 개선 방안2"
+          ]
         }}
 
-        **중요 지침:**
-        1. **이 분석의 목적은 실제 채점 및 점수 부여입니다. 각 단계별 점수를 정확히 계산하세요.**
-        2. step_validations의 각 항목은 메타데이터의 solution_steps와 1:1 매핑되어야 합니다.
-        3. step_number와 step_name은 메타데이터에서 정의된 값을 정확히 사용하세요.
-        4. points_possible은 메타데이터의 해당 단계 points 값을 사용하세요.
-        5. points_earned는 학생이 실제로 획득한 점수를 엄격하게 계산하세요.
-        6. `student_work_latex`는 반드시 LaTeX 형식으로 작성하세요. 예: $\\\\frac{{1}}{{2}}$, $x^2 + 2x + 1$
-        7. `validation_evidence`에는 "학생이 $x = 3$을 대입했고, $f(3) = 3^2 + 1 = 10$으로 계산했습니다. 정답은 $f(3) = 10$이므로 올바릅니다."와 같이 LaTeX를 포함한 구체적인 검증 과정을 작성하세요.
-        8. `related_box_ids`는 이미지에서 해당 스텝의 풀이가 포함된 모든 Box ID를 포함해야 합니다.
-        9. 학생의 풀이가 모범답안과 다르더라도, 수학적으로 올바르다면 정답으로 인정하세요.
-        10. 순수하게 JSON만 출력하세요. JSON 외의 텍스트를 포함하지 마세요.
-
-        **주의사항:**
+        **주의 사항:**
+        - 순수 하게 JSON만 출력하세요. JSON 외의 텍스트를 포함하지 마세요.
         - Box ID는 이미지에 표시된 숫자와 정확히 일치해야 합니다.
+        - `related_box_ids`는 반드시 **이미지에 표시된 숫자 ID**와 정확히 일치해야 합니다.
         - LaTeX 형식을 사용할 때 백슬래시는 이중으로 사용하세요 (\\\\frac, \\\\sqrt 등).
-        - 텍스트 매핑 정보를 참고하되, 최종 판단은 이미지를 보고 하세요.
-    """
+        - 필기가 흐려서 판독이 어려운 경우 그 사실을 피드백에 명시하세요.
+        """
     return prompt
